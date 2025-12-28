@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Earn Meter</string>
+    <string name="notification_listener_service_label">Earn Meter Notification Access</string>
+    
+    <!-- Feature Names (can be overridden) -->
+    <string name="feature_smart_assist">Smart Assist</string>
+    <string name="feature_track_profits">Track Profits</string>
+    
+    <!-- Auth Strings -->
+    <string name="phone_number">Phone Number</string>
+    <string name="password">Password</string>
+    <string name="enter_otp">Enter OTP</string>
+    <string name="sign_in">Sign In</string>
+    <string name="sign_up">Sign Up</string>
+    <string name="forgot_password">Forgot Password?</string>
+    <string name="verify_otp">Verify OTP</string>
+    <string name="resend_otp">Resend OTP</string>
+    
+    <!-- Profile -->
+    <string name="profile">Profile</string>
+    <string name="edit_profile">Edit Profile</string>
+    <string name="reset_password">Reset Password</string>
+    <string name="logout">Logout</string>
+    
+    <!-- Permissions -->
+    <string name="notification_permission_title">Notification Access Required</string>
+    <string name="notification_permission_desc">Earn Meter needs access to read notifications from ride-sharing apps to analyze ride offers.</string>
+    <string name="overlay_permission_title">Overlay Permission Required</string>
+    <string name="overlay_permission_desc">Allow Earn Meter to display ride analysis popup over other apps.</string>
+    <string name="battery_optimization_title">Disable Battery Optimization</string>
+    <string name="battery_optimization_desc">This ensures Earn Meter runs reliably in the background.</string>
+    
+    <!-- Settings -->
+    <string name="settings">Settings</string>
+    <string name="overlay_settings">Overlay Settings</string>
+    <string name="font_size">Font Size</string>
+    <string name="position">Position</string>
+    <string name="display_duration">Display Duration</string>
+    <string name="opacity">Opacity</string>
+    
+    <!-- Track Profits -->
+    <string name="earnings_per_km">Earnings per KM</string>
+    <string name="earnings_per_hour">Earnings per Hour</string>
+    <string name="user_rating">User Rating</string>
+    <string name="good">Good</string>
+    <string name="average">Average</string>
+    <string name="bad">Bad</string>
+    <string name="suggest_ranges">Suggest Best Ranges</string>
+    
+    <!-- Analytics -->
+    <string name="today_earnings">Today\'s Earnings</string>
+    <string name="rides_accepted">Rides Accepted</string>
+    <string name="rides_rejected">Rides Rejected</string>
+    <string name="total_distance">Total Distance</string>
+</resources>
+

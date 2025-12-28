@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="ic_launcher_background">#00C853</color>
+    
+    <!-- Primary colors -->
+    <color name="emerald_green">#00C853</color>
+    <color name="dark_emerald">#00A844</color>
+    
+    <!-- Classification colors -->
+    <color name="good_green">#2E7D32</color>
+    <color name="average_orange">#F57C00</color>
+    <color name="bad_red">#C62828</color>
+    
+    <!-- Neutral colors -->
+    <color name="deep_charcoal">#121212</color>
+    <color name="warm_white">#FAFAFA</color>
+</resources>
+
