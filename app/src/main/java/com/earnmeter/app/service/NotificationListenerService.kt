@@ -3,7 +3,7 @@ package com.earnmeter.app.service
 import android.app.Notification
 import android.content.Intent
 import android.os.IBinder
-import android.service.notification.NotificationListenerService
+import android.service.notification.NotificationListenerService as AndroidNotificationListenerService
 import android.service.notification.StatusBarNotification
 import android.util.Log
 import com.earnmeter.app.data.repository.AuthRepository
@@ -38,7 +38,7 @@ import javax.inject.Inject
  *   - OverlayManager: Handles overlay display
  */
 @AndroidEntryPoint
-class RideNotificationListenerService : NotificationListenerService() {
+class NotificationListenerService : AndroidNotificationListenerService() {
 
     companion object {
         private const val TAG = "RideNotificationListener"

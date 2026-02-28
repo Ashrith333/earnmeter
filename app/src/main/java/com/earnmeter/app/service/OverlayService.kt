@@ -1,6 +1,8 @@
 package com.earnmeter.app.service
 
 import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
@@ -11,14 +13,13 @@ import android.os.IBinder
 import android.os.Looper
 import android.provider.Settings
 import android.view.Gravity
-import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
+import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.core.app.NotificationCompat
-import androidx.core.content.ContextCompat
 import com.earnmeter.app.EarnMeterApp
 import com.earnmeter.app.R
 import com.earnmeter.app.domain.model.RideClassification
@@ -29,7 +30,9 @@ import dagger.hilt.android.AndroidEntryPoint
 class OverlayService : Service() {
 
     private lateinit var windowManager: WindowManager
-    private var overlayView: View? = null
+    private var rideOverlayView: View? = null
+    private var hoverIconView: View? = null
+    private var closeActionView: View? = null
     private val handler = Handler(Looper.getMainLooper())
     private var hideRunnable: Runnable? = null
 
@@ -57,15 +60,18 @@ class OverlayService : Service() {
     override fun onCreate() {
         super.onCreate()
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
+        ensureHoverIconVisible()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_START_FOREGROUND -> {
                 startForegroundService()
+                ensureHoverIconVisible()
             }
             ACTION_STOP_FOREGROUND -> {
-                removeOverlay()
+                removeRideOverlay()
+                removeHoverViews()
                 stopForeground(STOP_FOREGROUND_REMOVE)
                 stopSelf()
             }
@@ -96,10 +102,11 @@ class OverlayService : Service() {
                         position = position,
                         opacity = opacity
                     )
+                    ensureHoverIconVisible()
                 }
             }
             ACTION_HIDE -> {
-                removeOverlay()
+                removeRideOverlay()
             }
         }
         
@@ -110,10 +117,23 @@ class OverlayService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
-        removeOverlay()
+        removeRideOverlay()
+        removeHoverViews()
     }
 
     private fun startForegroundService() {
+        createForegroundChannelIfRequired()
+
+        val stopIntent = Intent(this, OverlayService::class.java).apply {
+            action = ACTION_STOP_FOREGROUND
+        }
+        val stopPendingIntent = PendingIntent.getService(
+            this,
+            99,
+            stopIntent,
+            PendingIntent.FLAG_IMMUTABLE
+        )
+
         val pendingIntent = PendingIntent.getActivity(
             this,
             0,
@@ -126,6 +146,7 @@ class OverlayService : Service() {
             .setContentText("Monitoring ride notifications")
             .setSmallIcon(R.drawable.ic_notification)
             .setContentIntent(pendingIntent)
+            .addAction(0, "Stop", stopPendingIntent)
             .setOngoing(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .build()
@@ -135,6 +156,21 @@ class OverlayService : Service() {
 
     private fun canDrawOverlays(): Boolean {
         return Settings.canDrawOverlays(this)
+    }
+
+    private fun createForegroundChannelIfRequired() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+
+        val manager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
+        val existingChannel = manager.getNotificationChannel(EarnMeterApp.CHANNEL_FOREGROUND_SERVICE)
+        if (existingChannel != null) return
+
+        val channel = NotificationChannel(
+            EarnMeterApp.CHANNEL_FOREGROUND_SERVICE,
+            "Earn Meter Service",
+            NotificationManager.IMPORTANCE_LOW
+        )
+        manager.createNotificationChannel(channel)
     }
 
     private fun showRideOverlay(
@@ -152,10 +188,10 @@ class OverlayService : Service() {
     ) {
         handler.post {
             // Remove existing overlay first
-            removeOverlay()
+            removeRideOverlay()
             
             // Create overlay view
-            overlayView = createOverlayView(
+            rideOverlayView = createRideOverlayView(
                 fareAmount = fareAmount,
                 distance = distance,
                 earningsPerKm = earningsPerKm,
@@ -172,10 +208,10 @@ class OverlayService : Service() {
             
             // Add view to window
             try {
-                windowManager.addView(overlayView, layoutParams)
+                windowManager.addView(rideOverlayView, layoutParams)
                 
                 // Schedule removal
-                hideRunnable = Runnable { removeOverlay() }
+                hideRunnable = Runnable { removeRideOverlay() }
                 handler.postDelayed(hideRunnable!!, durationMs)
             } catch (e: Exception) {
                 e.printStackTrace()
@@ -183,7 +219,7 @@ class OverlayService : Service() {
         }
     }
 
-    private fun createOverlayView(
+    private fun createRideOverlayView(
         fareAmount: Double,
         distance: Double,
         earningsPerKm: Double,
@@ -322,7 +358,7 @@ class OverlayService : Service() {
                     // If it was a tap (not a drag), dismiss
                     if (Math.abs(event.rawX - initialTouchX) < 10 && 
                         Math.abs(event.rawY - initialTouchY) < 10) {
-                        removeOverlay()
+                        removeRideOverlay()
                     }
                     true
                 }
@@ -364,20 +400,174 @@ class OverlayService : Service() {
         }
     }
 
-    private fun removeOverlay() {
+    private fun ensureHoverIconVisible() {
+        if (!canDrawOverlays()) return
+
+        handler.post {
+            if (hoverIconView != null) return@post
+
+            val iconSize = 140
+            val iconView = FrameLayout(this).apply {
+                setBackgroundColor(0xCC1E88E5.toInt())
+                setPadding(24, 24, 24, 24)
+                addView(TextView(context).apply {
+                    text = "EM"
+                    setTextColor(0xFFFFFFFF.toInt())
+                    textSize = 14f
+                    gravity = Gravity.CENTER
+                })
+            }
+
+            val iconParams = createHoverLayoutParams(iconSize, iconSize).apply {
+                gravity = Gravity.CENTER_VERTICAL or Gravity.END
+                x = 0
+                y = 0
+            }
+
+            var initialX = 0
+            var initialY = 0
+            var initialTouchX = 0f
+            var initialTouchY = 0f
+
+            iconView.setOnTouchListener { view, event ->
+                when (event.action) {
+                    MotionEvent.ACTION_DOWN -> {
+                        initialX = iconParams.x
+                        initialY = iconParams.y
+                        initialTouchX = event.rawX
+                        initialTouchY = event.rawY
+                        true
+                    }
+
+                    MotionEvent.ACTION_MOVE -> {
+                        iconParams.x = initialX - (event.rawX - initialTouchX).toInt()
+                        iconParams.y = initialY + (event.rawY - initialTouchY).toInt()
+                        windowManager.updateViewLayout(view, iconParams)
+                        closeActionView?.let { closeView ->
+                            (closeView.layoutParams as? WindowManager.LayoutParams)?.let { params ->
+                                params.x = iconParams.x + 150
+                                params.y = iconParams.y - 150
+                                windowManager.updateViewLayout(closeView, params)
+                            }
+                        }
+                        true
+                    }
+
+                    MotionEvent.ACTION_UP -> {
+                        val isTap = Math.abs(event.rawX - initialTouchX) < 10 &&
+                            Math.abs(event.rawY - initialTouchY) < 10
+                        if (isTap) {
+                            launchMainApp()
+                        }
+                        true
+                    }
+
+                    else -> false
+                }
+            }
+
+            try {
+                windowManager.addView(iconView, iconParams)
+                hoverIconView = iconView
+                addCloseAction(iconParams)
+            } catch (_: Exception) {
+                hoverIconView = null
+            }
+        }
+    }
+
+    private fun addCloseAction(iconParams: WindowManager.LayoutParams) {
+        if (closeActionView != null) return
+
+        val closeView = TextView(this).apply {
+            text = "✕"
+            setTextColor(0xFFFFFFFF.toInt())
+            setBackgroundColor(0xCCE53935.toInt())
+            textSize = 16f
+            gravity = Gravity.CENTER
+            setPadding(18, 10, 18, 10)
+            setOnClickListener {
+                removeRideOverlay()
+                removeHoverViews()
+                stopForeground(STOP_FOREGROUND_REMOVE)
+                stopSelf()
+            }
+        }
+
+        val closeParams = createHoverLayoutParams(
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.WRAP_CONTENT
+        ).apply {
+            gravity = Gravity.CENTER_VERTICAL or Gravity.END
+            x = iconParams.x + 150
+            y = iconParams.y - 150
+        }
+
+        try {
+            windowManager.addView(closeView, closeParams)
+            closeActionView = closeView
+        } catch (_: Exception) {
+            closeActionView = null
+        }
+    }
+
+    private fun launchMainApp() {
+        val intent = Intent(this, MainActivity::class.java).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        }
+        startActivity(intent)
+    }
+
+    private fun createHoverLayoutParams(width: Int, height: Int): WindowManager.LayoutParams {
+        val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+        } else {
+            @Suppress("DEPRECATION")
+            WindowManager.LayoutParams.TYPE_PHONE
+        }
+
+        return WindowManager.LayoutParams(
+            width,
+            height,
+            type,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+            PixelFormat.TRANSLUCENT
+        )
+    }
+
+    private fun removeRideOverlay() {
         handler.post {
             hideRunnable?.let { handler.removeCallbacks(it) }
             hideRunnable = null
             
-            overlayView?.let { view ->
+            rideOverlayView?.let { view ->
                 try {
                     windowManager.removeView(view)
                 } catch (e: Exception) {
                     // View might already be removed
                 }
             }
-            overlayView = null
+            rideOverlayView = null
+        }
+    }
+
+    private fun removeHoverViews() {
+        handler.post {
+            hoverIconView?.let { view ->
+                try {
+                    windowManager.removeView(view)
+                } catch (_: Exception) {
+                }
+            }
+            closeActionView?.let { view ->
+                try {
+                    windowManager.removeView(view)
+                } catch (_: Exception) {
+                }
+            }
+            hoverIconView = null
+            closeActionView = null
         }
     }
 }
-
